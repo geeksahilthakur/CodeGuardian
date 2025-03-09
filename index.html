@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CodeGuardian - Advanced Secure Code Analyzer</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/atom-one-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/languages/javascript.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/languages/css.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/languages/xml.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/diff/5.1.0/diff.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/2.3.10/purify.min.js"></script>
+</head>
+<body>
+  <header>
+    <div class="logo-container">
+      <svg class="logo" viewBox="0 0 24 24">
+        <path d="M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10zm0-2a8 8 0 100-16 8 8 0 000 16zm-1-4h2v2h-2v-2zm0-10h2v8h-2V6z"/>
+      </svg>
+      <h1>CodeGuardian</h1>
+    </div>
+    <div class="controls">
+      <div class="theme-toggle">
+        <label for="theme-switch">Dark Mode</label>
+        <label class="switch">
+          <input type="checkbox" id="theme-switch">
+          <span class="slider round"></span>
+        </label>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="sidebar">
+      <div class="file-manager">
+        <h3>Files</h3>
+        <ul id="file-list">
+          <li class="active" data-type="html">HTML</li>
+          <li data-type="css">CSS</li>
+          <li data-type="js">JavaScript</li>
+        </ul>
+      </div>
+      <div class="stats-panel">
+        <h3>Statistics</h3>
+        <div id="stats-container">
+          <div class="stat-item">
+            <span class="stat-label">Critical:</span>
+            <span class="stat-value" id="critical-count">0</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Warnings:</span>
+            <span class="stat-value" id="warning-count">0</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Infos:</span>
+            <span class="stat-value" id="info-count">0</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Total:</span>
+            <span class="stat-value" id="total-count">0</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Fixed:</span>
+            <span class="stat-value" id="fixed-count">0</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="editor-container">
+      <div class="toolbar">
+        <button id="analyze-btn" class="primary-btn">
+          <svg viewBox="0 0 24 24" class="btn-icon">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+          </svg>
+          Analyze & Fix Code
+        </button>
+        <button id="upload-btn" class="secondary-btn">
+          <svg viewBox="0 0 24 24" class="btn-icon">
+            <path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/>
+          </svg>
+          Upload Files
+        </button>
+        <button id="download-btn" class="secondary-btn">
+          <svg viewBox="0 0 24 24" class="btn-icon">
+            <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+          </svg>
+          Download Fixed
+        </button>
+        <button id="compare-btn" class="secondary-btn">
+          <svg viewBox="0 0 24 24" class="btn-icon">
+            <path d="M9.01 14H2v2h7.01v3L13 15l-3.99-4v3zm5.98-1v-3H22V8h-7.01V5L11 9l3.99 4z"/>
+          </svg>
+          Compare Changes
+        </button>
+        <input type="file" id="file-upload" accept=".html,.css,.js,.txt" style="display: none;" multiple>
+      </div>
+
+      <div class="code-panels">
+        <div id="editor-panel" class="panel active">
+          <div class="panel-header">
+            <h3 id="editor-title">HTML Editor</h3>
+            <div class="editor-actions">
+              <button id="format-btn" class="icon-btn" title="Format Code">
+                <svg viewBox="0 0 24 24" class="btn-icon">
+                  <path d="M3 21h18v-2H3v2zM3 8v8h18V8H3zm0-5v3h18V3H3z"/>
+                </svg>
+              </button>
+              <button id="line-numbers-btn" class="icon-btn active" title="Toggle Line Numbers">
+                <svg viewBox="0 0 24 24" class="btn-icon">
+                  <path d="M7 13h10v-2H7v2zm0 4h10v-2H7v2zm0-8h10V7H7v2zM3 8V5H2V4h2v4H3zm-1 3h1.5v0.5h-1v1H5V10H3v1zm1.5 1.5v-1H5V15H2v-1h1.5zm0 3.5H2v1h3v-4H3v1h1.5v1H3v1h1.5z"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div class="editor-content">
+            <div id="line-numbers" class="line-numbers"></div>
+            <textarea id="code-input" spellcheck="false" placeholder="Paste or type your code here..."></textarea>
+          </div>
+        </div>
+
+        <div id="output-panel" class="panel">
+          <div class="panel-header">
+            <h3>Analysis Results</h3>
+            <div class="tab-buttons">
+              <button class="tab-btn active" data-tab="issues-tab">Issues</button>
+              <button class="tab-btn" data-tab="fixed-tab">Fixed Code</button>
+              <button class="tab-btn" data-tab="diff-tab">Comparison</button>
+              <button class="tab-btn" data-tab="changes-tab">Changes Log</button>
+            </div>
+          </div>
+          <div class="tab-content">
+            <div id="issues-tab" class="tab-pane active">
+              <div class="search-bar">
+                <input type="text" id="issue-search" placeholder="Search issues...">
+                <select id="severity-filter">
+                  <option value="all">All Severities</option>
+                  <option value="critical">Critical</option>
+                  <option value="warning">Warning</option>
+                  <option value="info">Info</option>
+                </select>
+              </div>
+              <div id="issues-container" class="scrollable-content"></div>
+            </div>
+            <div id="fixed-tab" class="tab-pane">
+              <div class="fixed-code-header">
+                <h4>Fixed Code</h4>
+                <button id="copy-fixed-code" class="secondary-btn">
+                  <svg viewBox="0 0 24 24" class="btn-icon">
+                    <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
+                  </svg>
+                  Copy Fixed Code
+                </button>
+              </div>
+              <div class="code-container">
+                <div class="line-numbers-fixed"></div>
+                <pre><code id="fixed-code" class="hljs"></code></pre>
+              </div>
+            </div>
+            <div id="diff-tab" class="tab-pane">
+              <div id="diff-container" class="scrollable-content"></div>
+            </div>
+            <div id="changes-tab" class="tab-pane">
+              <div id="changes-container" class="scrollable-content"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <div id="vulnerability-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="modal-title">Vulnerability Details</h2>
+        <span class="close">&times;</span>
+      </div>
+      <div class="modal-body">
+        <div id="vulnerability-details"></div>
+      </div>
+      <div class="modal-footer">
+        <button id="modal-close-btn" class="secondary-btn">Close</button>
+        <a id="learn-more-link" href="#" target="_blank" class="primary-btn">Learn More</a>
+      </div>
+    </div>
+  </div>
+
+  <div id="fix-preview-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Fix Preview</h2>
+        <span class="close">&times;</span>
+      </div>
+      <div class="modal-body">
+        <div class="fix-preview-container">
+          <div class="fix-preview-header">
+            <div>Original Code</div>
+            <div>Fixed Code</div>
+          </div>
+          <div id="fix-preview-content"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="fix-preview-close-btn" class="secondary-btn">Close</button>
+        <button id="apply-fix-btn" class="primary-btn">Apply Fix</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+  <script src="security-library.js"></script>
+</body>
+</html>
+
