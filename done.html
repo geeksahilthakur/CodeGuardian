@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Security Code Analyzer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+
+        .container {
+            display: flex;
+            gap: 20px;
+            min-height: 90vh;
+        }
+
+        .editor-panel, .output-panel {
+            flex: 1;
+            padding: 15px;
+            background: #f5f5f5;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+        }
+
+        textarea {
+            width: 100%;
+            height: 200px;
+            margin: 10px 0;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-family: monospace;
+            resize: vertical;
+        }
+
+        button {
+            background: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+
+        button:hover {
+            background: #45a049;
+        }
+
+        .nav-buttons {
+            margin-bottom: 15px;
+        }
+
+        #codeOutput {
+            background: white;
+            padding: 15px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            max-height: 70vh;
+            overflow: auto;
+        }
+
+        .highlight {
+            background: #ffeb3b;
+            padding: 2px 0;
+            border-radius: 3px;
+        }
+
+        .current-highlight {
+            background: #ff9800;
+        }
+
+        .vulnerability-report {
+            background: #fff;
+            padding: 15px;
+            margin-top: 15px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
+
+        .issue {
+            margin: 10px 0;
+            padding: 10px;
+            border-left: 4px solid;
+        }
+
+        .critical { border-color: #ff0000; background: #ffe6e6; }
+        .warning { border-color: #ff9800; background: #fff3e0; }
+        .info { border-color: #2196F3; background: #e3f2fd; }
+
+        .highlight-add {
+            background: #ffffcc;
+            padding: 2px;
+            border-radius: 3px;
+        }
+
+        .report-summary {
+            margin-bottom: 15px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="editor-panel">
+            <h3>HTML</h3>
+            <textarea id="htmlInput" placeholder="Paste HTML code here..."></textarea>
+            <h3>CSS</h3>
+            <textarea id="cssInput" placeholder="Paste CSS code here..."></textarea>
+            <h3>JavaScript</h3>
+            <textarea id="jsInput" placeholder="Paste JavaScript code here..."></textarea>
+            <button onclick="processCode()">Analyze Code</button>
+            <button onclick="fixCode()">Fix Code</button>
+        </div>
+        
+        <div class="output-panel">
+            <div class="nav-buttons">
+                <button onclick="prevHighlight()">Previous</button>
+                <button onclick="nextHighlight()">Next</button>
+            </div>
+            <pre id="codeOutput"></pre>
+            <div id="reportOutput" class="vulnerability-report"></div>
+        </div>
+    </div>
+
+    <script>
+        let currentHighlightIndex = -1;
+        let highlights = [];
+        let detectedIssues = [];
+        let fixedIssues = 0;
+        let manualIssues = 0;
+
+        const securityLibraries = [
+            'https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js',
+            'https://cdn.jsdelivr.net/npm/js-xss@1.0.14/dist/xss.min.js',
+            'https://cdn.jsdelivr.net/npm/validator@13.11.0/validator.min.js'
+        ];
+
+        const vulnerabilityPatterns = {
+            xss: /(<script>|on\w+=|javascript:)/gi,
+            sqlInjection: /(SELECT\s.+FROM|INSERT\sINTO|DELETE\sFROM|UNION\sSELECT)/gi,
+            fileUpload: /<input[^>]*type=['"]file['"][^>]*>/gi,
+            unvalidatedInputs: /<input[^>]*(?!(required|pattern|maxlength))[^>]*>/gi
+        };
+
+        function escapeHtml(unsafe) {
+            return unsafe
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        function processCode() {
+            const htmlCode = document.getElementById('htmlInput').value;
+            const escapedHtml = escapeHtml(htmlCode);
+            
+            // Detect input elements
+            const tagRegex = /(&lt;(input|textarea|select)\b[\s\S]*?&gt;[\s\S]*?(&lt;\/(textarea|select)&gt;)?)/gi;
+            
+            let highlightedHtml = escapedHtml;
+            let match;
+            let matches = [];
+
+            // Find input elements
+            while ((match = tagRegex.exec(escapedHtml)) !== null) {
+                matches.push({
+                    start: match.index,
+                    end: match.index + match[0].length,
+                    tag: match[0]
+                });
+            }
+
+            // Apply highlighting
+            let offset = 0;
+            matches.forEach((m, index) => {
+                const replacement = `<span id="highlight-${index}" class="highlight">${m.tag}</span>`;
+                highlightedHtml = highlightedHtml.slice(0, m.start + offset) + 
+                                replacement + 
+                                highlightedHtml.slice(m.end + offset);
+                offset += replacement.length - m.tag.length;
+            });
+
+            // Detect vulnerabilities
+            detectedIssues = detectVulnerabilities(htmlCode);
+            generateReport();
+
+            document.getElementById('codeOutput').innerHTML = highlightedHtml;
+            highlights = document.querySelectorAll('.highlight');
+            currentHighlightIndex = -1;
+
+            if (highlights.length > 0) {
+                currentHighlightIndex = 0;
+                highlights[currentHighlightIndex].classList.add('current-highlight');
+                highlights[currentHighlightIndex].scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
+
+        function detectVulnerabilities(code) {
+            const issues = [];
+            
+            // XSS Detection
+            if (vulnerabilityPatterns.xss.test(code)) {
+                issues.push({
+                    type: 'XSS',
+                    impact: 'Allows attackers to execute malicious scripts in users browsers',
+                    fix: 'Sanitize inputs using DOMPurify',
+                    autoFix: true
+                });
+            }
+
+            // SQL Injection Detection
+            if (vulnerabilityPatterns.sqlInjection.test(code)) {
+                issues.push({
+                    type: 'SQL Injection',
+                    impact: 'Allows unauthorized database access',
+                    fix: 'Use parameterized queries on server-side',
+                    autoFix: false
+                });
+            }
+
+            // File Upload Checks
+            const fileInputs = code.match(vulnerabilityPatterns.fileUpload) || [];
+            fileInputs.forEach(input => {
+                if (!input.includes('accept=')) {
+                    issues.push({
+                        type: 'File Upload',
+                        impact: 'Allows arbitrary file types to be uploaded',
+                        fix: 'Add accept attribute and client-side validation',
+                        autoFix: true
+                    });
+                }
+                if (!input.includes('max-size')) {
+                    issues.push({
+                        type: 'File Upload',
+                        impact: 'No size restriction on uploaded files',
+                        fix: 'Add client-side size validation',
+                        autoFix: true
+                    });
+                }
+            });
+
+            return issues;
+        }
+
+        function addSecurityLibraries(code) {
+            const libTags = securityLibraries.map(lib => 
+                `<script src="${lib}"><\/script>`
+            ).join('\n');
+            return code.replace(/<head>/i, `$&${libTags}`);
+        }
+
+        function fixInputFields(code) {
+            let fixedCode = code;
+            
+            // Add input sanitization
+            fixedCode = fixedCode.replace(
+                /<input\s([^>]*id=['"]([^'"]+)[^>]*)>/gi,
+                (match, attrs, id) => {
+                    const sanitizeScript = `\n<!-- Added DOMPurify sanitization -->
+<script>
+  document.getElementById('${id}').addEventListener('input', (e) => {
+    e.target.value = DOMPurify.sanitize(e.target.value);
+  });
+<\/script>`;
+                    return `${match}${sanitizeScript}`;
+                }
+            );
+
+            // Fix file uploads
+            fixedCode = fixedCode.replace(
+                /<input\s([^>]*type=['"]file['"][^>]*)>/gi,
+                (match, attrs) => {
+                    const newAttrs = attrs.includes('accept=') ? attrs : 
+                        `${attrs} accept="image/png,image/jpeg"`;
+                    
+                    const validationScript = `\n<!-- Added file validation -->
+<script>
+  document.querySelector('input[type="file"]').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    const allowedTypes = ['image/png', 'image/jpeg'];
+    const maxSize = 5 * 1024 * 1024;
+
+    if (!allowedTypes.includes(file.type)) {
+      alert('Invalid file type');
+      e.target.value = '';
+    } else if (file.size > maxSize) {
+      alert('File size exceeds 5MB');
+      e.target.value = '';
+    }
+  });
+<\/script>`;
+                    
+                    return `<span class="highlight-add">${match.replace('>', '></span>')}${validationScript}`;
+                }
+            );
+
+            return fixedCode;
+        }
+
+        function generateReport() {
+            const report = document.getElementById('reportOutput');
+            const summary = `
+                <div class="report-summary">
+                    <h3>Security Report</h3>
+                    <p>Total Issues Found: ${detectedIssues.length}</p>
+                    <p>Issues Fixed Automatically: ${fixedIssues}</p>
+                    <p>Issues Needing Manual Fixes: ${manualIssues}</p>
+                </div>`;
+
+            const issuesList = detectedIssues.map(issue => `
+                <div class="issue ${issue.autoFix ? 'warning' : 'critical'}">
+                    <h4>${issue.type}</h4>
+                    <p><strong>Impact:</strong> ${issue.impact}</p>
+                    <p><strong>Fix:</strong> ${issue.fix}</p>
+                    ${!issue.autoFix ? '<p>⚠️ Requires manual fixing</p>' : ''}
+                </div>`
+            ).join('');
+
+            report.innerHTML = summary + issuesList;
+        }
+
+        function fixCode() {
+            let code = document.getElementById('htmlInput').value;
+            detectedIssues = detectVulnerabilities(code);
+            
+            fixedIssues = 0;
+            manualIssues = 0;
+            
+            code = addSecurityLibraries(code);
+            code = fixInputFields(code);
+            
+            detectedIssues.forEach(issue => {
+                if (issue.autoFix) fixedIssues++;
+                else manualIssues++;
+            });
+
+            document.getElementById('htmlInput').value = code;
+            processCode();
+            generateReport();
+        }
+
+        function updateHighlight() {
+            highlights.forEach((h, index) => {
+                h.classList.toggle('current-highlight', index === currentHighlightIndex);
+            });
+        }
+
+        function nextHighlight() {
+            if (highlights.length === 0) return;
+            currentHighlightIndex = (currentHighlightIndex + 1) % highlights.length;
+            updateHighlight();
+            highlights[currentHighlightIndex].scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        function prevHighlight() {
+            if (highlights.length === 0) return;
+            currentHighlightIndex = (currentHighlightIndex - 1 + highlights.length) % highlights.length;
+            updateHighlight();
+            highlights[currentHighlightIndex].scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    </script>
+</body>
+</html>
